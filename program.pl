@@ -43,13 +43,38 @@ sub get_num {
 
 ## Правила грамматики
 
+sub factor {
+	if ($look eq "(") {
+		&match("(");
+		&expression();
+		&match(")");
+	} else {
+		&emitln("MOVE #" . &get_num() . ",D0");
+	}	
+}
+
 sub term {
-	&emitln("MOVE #" . &get_num() . ",D0");
+	&factor();
+	while ($look =~ /[*\/]/) {
+		&emitln("MOVE D0,-(SP)");
+		if ($look eq "*") {
+			&multiply();
+		} elsif ($look eq "/") {
+			&divide();
+		} else {
+			&expected("Mulop");
+		}
+	}
 }
 
 sub expression {
-	&term();
-	while ($look =~ /[+-]/) {
+	if (&is_addop($look)) {
+		&emitln("CLR D0"); # - вставить 0 в начало выражения для эмуляции унарных + -
+	} else {
+		&term();
+	}
+	
+	while (&is_addop($look)) {
 		&emitln("MOVE D0,-(SP)");
 		if ($look eq "+") {
 			&add(); 
@@ -74,6 +99,34 @@ sub subtract {
 	&emitln("NEG D0");
 }
 
+sub multiply {
+	&match("*");
+	&factor();
+	&emitln("MULS (SP)+,D0");
+}
+
+sub divide {
+	&match("/");
+	&factor();
+	&emitln("MOVE (SP)+,D1");
+	&emitln("DIVS D1,D0");
+}
+
+## Обработка ошибок
+
+sub expected {
+	&abort("$_[0] Expected");
+}
+
+sub abort {
+	&error($_[0]);
+	exit 1;
+}
+
+sub error {
+	print "\n[ERROR] $_[0].\n";
+}
+
 ## private
 
 # Проверка обязательного символа
@@ -94,6 +147,10 @@ sub is_digit {
 	$_[0] =~ /[0-9]/i;
 }
 
+sub is_addop {
+	$_[0] =~ /[+-]/
+}
+
 #  Возврат сформированной команды
 sub emit {
 	print "\t $_[0]";
@@ -103,19 +160,5 @@ sub emitln {
 	print "\t $_[0]\n";
 }
 
-## Обработка ошибок
-
-sub expected {
-	&abort("$_[0] Expected");
-}
-
-sub abort {
-	&error($_[0]);
-	exit 1;
-}
-
-sub error {
-	print "\n[ERROR] $_[0].\n";
-}
 
 1;
