@@ -1,6 +1,6 @@
 #! /usr/bin/perl
 
-## Basic single-char syntax analyzer
+## syntax analyzer by chapters 1-3
 
 use strict;
 use warnings;
@@ -11,13 +11,14 @@ my $look;
 sub main {
 	&init();
 	&expression();
-	# if ($look ne "\r\n") {
+	# if ($look ne "\n") {
 	# 	&expected("New line");
 	# }
 }
 
 sub init {
 	&get_char();
+	&skip_spaces();
 }
 
 ## Lexer
@@ -29,24 +30,40 @@ sub get_char {
 
 # Идентификатор
 sub get_name {
+	my $token = "";
 	if (!&is_alpha($look)) {
 		&expected("Name");
 	}
 	
-	my $result = uc $look;
-	&get_char();
-	$result;
+	while (&is_alpha($look) || &is_digit($look)) {
+		$token .= uc $look;
+		&get_char();
+	}
+
+	&skip_spaces();
+	$token;
 }
 
 # Число
 sub get_num {
+	my $value = "";
 	if (!&is_digit($look)) {
 		&expected("Integer");
 	}
 	
-	my $result = uc $look;
-	&get_char();
-	$result;
+	while (&is_digit($look)) {
+		$value .= $look;
+		&get_char();
+	}
+
+	&skip_spaces();
+	$value;
+}
+
+sub skip_spaces {
+	while (&is_space($look)) {
+		&get_char();
+	}
 }
 
 ## Правила грамматики
@@ -107,6 +124,14 @@ sub expression {
 	}
 }
 
+sub assignment {
+	my $name = &get_name();
+	&match('=');
+	&expression();
+	&emitln("LEA $name(PC),A0");
+	&emitln('MOVE D0,(A0)')
+}
+
 sub add {
 	&match("+");
 	&term();
@@ -136,7 +161,8 @@ sub divide {
 ## Обработка ошибок
 
 sub expected {
-	&abort("$_[0] Expected");
+	my ($package, $filename, $line) = caller;
+	&abort("$_[0] Expected. Found: '${look}' in (${line})");
 }
 
 sub abort {
@@ -155,6 +181,7 @@ sub match {
 	my $x = $_[0];
 	if ($look eq $x) {
 		&get_char();
+		&skip_spaces();
 	} else {
 		&expected("'${x}'");
 	}
@@ -168,6 +195,10 @@ sub is_digit {
 	$_[0] =~ /[0-9]/i;
 }
 
+sub is_space {
+	($_[0] eq " ") || ($_[0] eq "\t");
+}
+
 sub is_addop {
 	$_[0] =~ /[+-]/
 }
@@ -179,6 +210,11 @@ sub emit {
 
 sub emitln {
 	print "\t $_[0]\n";
+}
+
+sub print_debug {
+	my ($package, $filename, $line) = caller;
+	print "Call from ${filename}:${line}";
 }
 
 ## Script body
